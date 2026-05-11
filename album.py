@@ -151,6 +151,7 @@ def main():
     const photo = document.getElementById('photo');
     const caption = document.getElementById('caption');
     const message = document.getElementById('message');
+    const prefetchCache = new Map();
 
     function showMessage(text) {{
       message.textContent = text;
@@ -169,8 +170,41 @@ def main():
       caption.textContent = `${{currentIndex + 1}} / ${{images.length}} — ${{images[currentIndex]}}`;
     }}
 
-    function imagePath() {{
-      return albumPath + '/' + images[currentIndex];
+    function imagePath(index) {{
+      return albumPath + '/' + images[index];
+    }}
+
+    function buildImageSrc(index) {{
+      const width = Math.max(1, window.innerWidth);
+      const height = Math.max(1, window.innerHeight);
+      return `${{imageUrlBase}}?path=${{encodeURIComponent(imagePath(index))}}&width=${{width}}&height=${{height}}`;
+    }}
+
+    function prefetchImage(index) {{
+      if (prefetchCache.has(index)) {{
+        return;
+      }}
+      const img = new Image();
+      img.src = buildImageSrc(index);
+      prefetchCache.set(index, img);
+    }}
+
+    function prefetchSurroundingImages(center) {{
+      const maxBefore = 10;
+      const maxAfter = 10;
+      const start = Math.max(0, center - maxBefore);
+      const end = Math.min(images.length - 1, center + maxAfter);
+
+      for (let i = start; i <= end; i++) {{
+        if (i === center) continue;
+        prefetchImage(i);
+      }}
+
+      for (const key of Array.from(prefetchCache.keys())) {{
+        if (key < start || key > end) {{
+          prefetchCache.delete(key);
+        }}
+      }}
     }}
 
     function loadImage() {{
@@ -181,11 +215,9 @@ def main():
         return;
       }}
       hideMessage();
-      const width = Math.max(1, window.innerWidth);
-      const height = Math.max(1, window.innerHeight);
-      const src = `${{imageUrlBase}}?path=${{encodeURIComponent(imagePath())}}&width=${{width}}&height=${{height}}`;
-      photo.src = src;
+      photo.src = buildImageSrc(currentIndex);
       setCaption();
+      prefetchSurroundingImages(currentIndex);
     }}
 
     function step(delta) {{
